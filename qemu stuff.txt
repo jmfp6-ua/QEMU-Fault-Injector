@@ -22,3 +22,13 @@
 -Run:
 	Static: ./fileName
 	Dynamic: qemu-riscv64 -L /usr/riscv64-linux-gnu ./fileName
+
+
+To run in gdb: 
+1. Add -g 5000 to qemu
+2. use gdb-multiarch fileName
+3. b main
+4. target remote localhost:5000
+
+
+
