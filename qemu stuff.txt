@@ -1,0 +1,24 @@
+#ARM 32bits#
+- Compile:
+	arm-linux-gnueabi-gcc
+	arm-linux-gnueabihf-gcc
+	add -static if needed
+-Run:
+	Static: ./fileName
+	Dynamic: qemu-arm -L /usr/arm-linux-gnueabi ./fileName
+	
+#ARM 64bits#
+- Compile:
+	aarch64-linux-gnu-gcc
+	add -static if needed
+-Run:
+	Static: ./fileName
+	Dynamic: qemu-aarch64 -L /usr/aarch64-linux-gnu ./fileName
+	
+#RISCV 64bits#
+- Compile:
+	riscv64-linux-gnu-gcc
+	add -static if needed
+-Run:
+	Static: ./fileName
+	Dynamic: qemu-riscv64 -L /usr/riscv64-linux-gnu ./fileName
