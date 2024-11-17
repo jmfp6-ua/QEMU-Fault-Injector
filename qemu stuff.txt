@@ -32,3 +32,8 @@ To run in gdb:
 
 
 
+#ARCH NAMES#
+arm32 = armv7
+arm64 = aarch64
+x86-64 = i386:x86-64
+riscv64 = riscv:rv64
