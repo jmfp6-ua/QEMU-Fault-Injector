@@ -107,10 +107,22 @@ def getRegisterSizeInBits(reg):
     reg = gdb.parse_and_eval("$" + reg)
     return reg.type.sizeof * 8
 
+def countProgramLines():
+    # Causing an exception on purpose because the error message has the info I need
+    try:
+        while True:
+            gdb.execute('list', to_string=True)
+    except gdb.error as error:
+        lines = str(error).split("has ")[1].split(" ")[0]
+        return int(lines)
+
 gdb.execute('target remote localhost:5000')
 getRegisters()
-
-MainBreakpoint('17')
+lines = countProgramLines()
+print("Total lines of code:", lines)
+random_line = random.randint(1, lines)
+print("Setting breakpoint at line " + str(random_line))
+MainBreakpoint(str(random_line))
 gdb.execute('continue')
 gdb.execute('exit')
 
