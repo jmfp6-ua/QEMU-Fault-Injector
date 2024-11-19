@@ -4,26 +4,6 @@ from gdb import Breakpoint
 from gdb import Frame
 
 REGISTERS = []
-
-class TestBreakpoint (gdb.Breakpoint):
-      def stop (self):
-        # Read variables
-        inf_val = gdb.parse_and_eval("nums")
-        f = gdb.newest_frame()
-        inf_val2 = f.read_var("nums")
-        r2 = f.read_register("r2")
-        print("Nums: ", inf_val)
-        print("Nums2: ", inf_val2)
-        gdb.execute("info r")
-        print("r2: ", r2)
-        gdb.execute("disassemble")
-        gdb.execute("set $r3 = 0")
-
-        # Modify variables
-        #gdb.execute("set (nums[0]) = 0")
-
-        # True = Stops, False = Does NOT stop
-        return False
       
 class MainBreakpoint (gdb.Breakpoint):
       def stop (self):
@@ -44,65 +24,6 @@ def getRandomRegister():
     
     return random.choice(REGISTERS)
 
-def bitFlip(bits):
-    bits = bits[2:]
-    bit = random.randrange(len(bits))
-
-    # Immutable strings (Python BAD)
-    bits_list = list(bits)
-    if bits_list[bit] == '0':
-        bits_list[bit] = '1'
-    else:
-        bits_list[bit] = '0'
-    
-    bits = ''.join(bits_list)
-    return "0b" + bits
-        
-
-def bitFlipRegister():
-    f = gdb.newest_frame()
-    random_register = getRandomRegister()
-    r = f.read_register(random_register)
-
-    reg_size = getRegisterSizeInBits(random_register)
-    print(random_register + " size:", reg_size)
-
-    if reg_size == 128:
-        r_binl = "0b" + format(int(r["u64"][0]), f'0{64}b')
-        r_binh = "0b" + format(int(r["u64"][1]), f'0{64}b')
-
-        print("Old " + random_register + ":")
-        print(r_binl + r_binh[2:])
-
-        r_bitFlipl = bitFlip(r_binl)
-        r_bitFliph = bitFlip(r_binh)
-
-        print("New " + random_register + ":")
-        print(r_bitFlipl + r_bitFliph[2:])
-
-        gdb.execute("set $" + random_register + ".u64[0] = " + r_bitFlipl)
-        gdb.execute("set $" + random_register + ".u64[1] = " + r_bitFliph)
-    else:
-        u64_mode = False
-        try:
-            r_bin = "0b" + format(int(r), f'0{reg_size}b')
-        except gdb.error:
-            print("U64 MODE")
-            u64_mode = True
-            r_bin = "0b" + format(int(r["u64"]), f'0{reg_size}b')
-        print("Old " + random_register + ":")
-        print(r_bin)
-        r_bitFlip = bitFlip(r_bin)
-        print("New " + random_register + ":")
-        print(r_bitFlip)
-
-        if u64_mode:
-            stri = "set $" + random_register + ".u64 = " + r_bitFlip
-        else:
-            stri = "set $" + random_register + " = " + r_bitFlip
-
-        gdb.execute(stri)
-
 def getRegisterSizeInBits(reg):
     reg = gdb.parse_and_eval("$" + reg)
     return reg.type.sizeof * 8
@@ -116,6 +37,53 @@ def countProgramLines():
         lines = str(error).split("has ")[1].split(" ")[0]
         return int(lines)
 
+def read_register(reg):
+    # Read the register value casted to unsigned long long for raw bit access.
+    g = gdb.execute(f"p (unsigned long long)${reg}", to_string=True)
+    value = g.split(" = ")[1].strip()
+    return int(value)
+
+def set_register(reg, raw_value):
+    # Set the register value using the raw_value directly.
+    gdb.execute(f"set ${reg} = (unsigned long long){raw_value}")
+
+def bitFlipRegister():
+    random_register = getRandomRegister()
+    r = read_register(random_register)
+
+    reg_size = getRegisterSizeInBits(random_register)
+    print(f"{random_register} size: {reg_size}")
+
+    # Convert the register value to binary.
+    r_bin = "0b" + format(r, f'0{reg_size}b')
+    print(f"Old {random_register}:")
+    print(r_bin)
+
+    # Flip the bits.
+    r_bitFlip = bitFlip(r_bin)
+    print(f"New {random_register}:")
+    print(r_bitFlip)
+
+    # Convert the flipped binary back to an integer.
+    r_bitFlip_int = int(r_bitFlip, 2)
+
+    # Set the register with the modified value.
+    set_register(random_register, r_bitFlip_int)
+
+def bitFlip(bits):
+    bits = bits[2:]
+    bit = random.randrange(len(bits))
+
+    # Immutable strings (Python BAD)
+    bits_list = list(bits)
+    if bits_list[bit] == '0':
+        bits_list[bit] = '1'
+    else:
+        bits_list[bit] = '0'
+    
+    bits = ''.join(bits_list)
+    return "0b" + bits
+
 gdb.execute('target remote localhost:5000')
 getRegisters()
 lines = countProgramLines()
@@ -125,8 +93,3 @@ print("Setting breakpoint at line " + str(random_line))
 MainBreakpoint(str(random_line))
 gdb.execute('continue')
 gdb.execute('exit')
-
-
-#gdb.execute('continue')
-#gdb.execute('continue')
-#o = gdb.execute('disassemble exit', to_string=True)
