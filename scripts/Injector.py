@@ -1,7 +1,9 @@
-import random
 import gdb
 from gdb import Breakpoint
 from gdb import Frame
+import random
+import os
+import json
 
 REGISTERS = []
       
@@ -84,8 +86,20 @@ def bitFlip(bits):
     bits = ''.join(bits_list)
     return "0b" + bits
 
+def readRegsJson(path):
+    global REGISTERS
+    
+    print("Path:", path)
+    with open(path, "r") as file:
+        REGISTERS = json.load(file)
+
 gdb.execute('target remote localhost:5000')
-getRegisters()
+
+regs_file = os.getenv("REGS_FILE", "auto")
+if regs_file == "auto":
+    getRegisters()
+else:
+    readRegsJson(regs_file)
 lines = countProgramLines()
 print("Total lines of code:", lines)
 random_line = random.randint(1, lines)
