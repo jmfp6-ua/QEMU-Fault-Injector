@@ -62,7 +62,7 @@ def dumpRegisters():
 parser = argparse.ArgumentParser()
 parser.add_argument("executable", help="Executable to run", type=str)
 parser.add_argument("-a", "--arch", help="Binary architecture (arm32, arm64, riscv, x86-64, default: auto)", default='auto', type=str)
-parser.add_argument("-i", help="Dump register list to json file and exit", action='store_true')
+parser.add_argument("-d", help="Dump register list to json file and exit", action='store_true')
 parser.add_argument("-r", "--regs", help="List of registers to attack (json file)", default='auto', type=str)
 
 args = parser.parse_args()
@@ -77,7 +77,7 @@ if not os.path.isfile(FILE):
 if ARCH == "auto":
     ARCH = getBinaryArch(FILE)
 
-if args.i:
+if args.d:
     dumpRegisters()
     exit()
 
