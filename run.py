@@ -1,6 +1,7 @@
 import subprocess
 import argparse
 import os
+import sys
 from enum import Enum
 
 LD_PREFIX_ARM = "/usr/arm-linux-gnueabi"
@@ -39,11 +40,16 @@ def runExecutable():
     global ARCH, FILE, LD_PREFIX_ARM, LD_PREFIX_ARM64, LD_PREFIX_RISCV
 
     if ARCH == Arch.Arm:
-        subprocess.Popen(["qemu-arm", "-L", LD_PREFIX_ARM ,"-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["qemu-arm", "-L", LD_PREFIX_ARM, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif ARCH == Arch.Arm64:
-        subprocess.Popen(["qemu-aarch64", "-L", LD_PREFIX_ARM64 ,"-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["qemu-aarch64", "-L", LD_PREFIX_ARM64, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif ARCH == Arch.riscv:
-        subprocess.Popen(["qemu-riscv64", "-L", LD_PREFIX_RISCV ,"-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["qemu-riscv64", "-L", LD_PREFIX_RISCV, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif ARCH == Arch.x86:
+        subprocess.Popen(["qemu-i386", "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif ARCH == Arch.x86_64:
+        subprocess.Popen(["qemu-x86_64", "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 
 
 def dumpRegisters():
@@ -56,7 +62,35 @@ def dumpRegisters():
     else:
         print("Failed to dump registers")
 
+def cleanRun(varName):
+    global FILE
 
+    runExecutable()
+    os.environ["VAR_NAME"] = varName
+    output = subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/cleanRun.py", FILE], env=os.environ, capture_output=True, text=True).stdout
+    result = output.split("Result: ")[1].split("\n")[0]
+    return result
+
+def registerFaultRun():
+    global FILE
+
+    runExecutable()
+    process = subprocess.Popen(["gdb-multiarch", "-q", "--command", "scripts/Injector.py", FILE], env=os.environ,stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    captured_output = ""
+
+    # Read output line by line in real-time
+    for line in process.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        captured_output += line
+
+    # Wait for process to finish
+    process.wait()
+    
+    
+    result = captured_output.split("Result: ")[1].split("\n")[0]
+    return result
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -87,5 +121,11 @@ if args.regs != "auto":
         exit()
     os.environ["REGS_FILE"] = args.regs
 
+
+print("Running clean run to obtain expected result")
+expectedResult = cleanRun("sum")
+print("Expected result:", expectedResult)
+
 runExecutable()
-subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/Injector.py", FILE], env=os.environ)
+result = registerFaultRun()
+print("Actual result:", result)
