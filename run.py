@@ -19,14 +19,14 @@ ARCH = ""
 FILE = ""
 
 def getBinaryWordSize(path):
-    bits = subprocess.run(f"readelf -h {path} | grep 'Class'", shell=True, capture_output=True, text=True)
+    bits = subprocess.run(f"LANG=en readelf -h {path} | grep 'Class'", shell=True, capture_output=True, text=True)
     if "ELF64" in bits.stdout:
         return 64
     elif "ELF32" in bits.stdout:
         return 32
     
 def getBinaryArch(path):
-    bits = subprocess.run(f"readelf -h {path} | grep 'Machine'", shell=True, capture_output=True, text=True)
+    bits = subprocess.run(f"LANG=en readelf -h {path} | grep 'Machine'", shell=True, capture_output=True, text=True)
     if "RISC-V" in bits.stdout:
         return Arch.riscv
     elif "X86-64" in bits.stdout:
