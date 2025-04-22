@@ -96,7 +96,7 @@ def debugRun():
     global FILE
 
     runExecutable()
-    subprocess.Popen(["gdb-multiarch", "-q", "--command", "scripts/debug.py", FILE], env=os.environ)
+    subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/debug.py", FILE], env=os.environ)
 
     return
 
@@ -129,6 +129,11 @@ if args.regs != "auto":
         exit()
     os.environ["REGS_FILE"] = args.regs
 
+'''
+print("Debug run")
+debugRun()
+exit()
+'''
 
 print("Running clean run to obtain expected result")
 expectedResult = cleanRun("sum")

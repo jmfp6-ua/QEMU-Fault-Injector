@@ -4,6 +4,7 @@ from gdb import Frame
 import random
 import os
 import json
+import re
 
 REGISTERS = []
       
@@ -14,11 +15,7 @@ class MainBreakpoint (gdb.Breakpoint):
 
       def stop (self):
         try:
-            reg = "v23"
-            v = read_register(reg)
-            print("Hi: ", v)
-            set_register(reg, v)
-            print(read_register(reg))
+            print("Hi: ")
         except Exception as e:
             print("Error in MainBreakpoint:", e)
         return True
@@ -84,12 +81,54 @@ def set_register(reg, value):
     gdb.execute(f"set (char[{size}])${reg} = {{{hex_string}}}")
 
 
+def break_on_return_of_main():
+    # Disassemble main
+    disasm = gdb.execute(f"disassemble main", to_string=True)
+    lines = disasm.strip().splitlines()
+
+    # Look for either 'pop {..., pc}' or 'ret'
+    for line in lines:
+        line = line.strip()
+        if re.search(r'\bpop\s+.*\bpc\b', line) or re.search(r'\bret\b', line):
+            match = re.match(r'(0x[0-9a-fA-F]+)', line)
+            if match:
+                target_addr = match.group(1)
+                gdb.Breakpoint(f"*{target_addr}")
+                print(f"✅ Breakpoint set at return instruction of main: {target_addr}")
+                return
+
+    print("❌ Could not find return instruction (pop {..., pc} or ret) in main.")
+
+def trace_main():
+    sym = gdb.lookup_global_symbol("main")
+    if sym is None:
+        print("Could not find symbol 'main'")
+        return
+
+    addr = sym.value().address
+    addr_str = str(addr)
+    insns = gdb.execute(f"disassemble main", to_string=True)
+
+    lines = insns.strip().splitlines()
+    for line in lines:
+        line = line.strip()
+        if line.startswith("0x"):
+            instr_addr = line.split()[0]
+            gdb.Breakpoint(f"*{instr_addr}", internal=False)
+            print(f"Set breakpoint at {instr_addr}")
+
 gdb.execute('target remote localhost:5000')
 
 gdb.execute('set print repeats unlimited')
 
-lines = countProgramLines()
-print("Total lines of code:", lines)
-MainBreakpoint(str(lines))
-print("Setting breakpoint at last line")
+
+break_on_return_of_main()
+#trace_main()
+
+#lastMain()
+
+#lines = countProgramLines()
+#print("Total lines of code:", lines)
+#MainBreakpoint(str(lines))
+#print("Setting breakpoint at last line")
 #gdb.execute('continue')

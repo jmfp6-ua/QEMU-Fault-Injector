@@ -4,6 +4,7 @@ from gdb import Frame
 import random
 import os
 import json
+import re
 
 REGISTERS = []
       
@@ -138,6 +139,24 @@ def readRegsJson(path):
     with open(path, "r") as file:
         REGISTERS = json.load(file)
 
+def setBreakOnReturnMain():
+    # Disassemble main
+    disasm = gdb.execute(f"disassemble main", to_string=True)
+    lines = disasm.strip().splitlines()
+
+    # Look for either 'pop {..., pc}' for arm32 or 'ret' for the rest
+    for line in lines:
+        line = line.strip()
+        if re.search(r'\bpop\s+.*\bpc\b', line) or re.search(r'\bret\b', line):
+            match = re.match(r'(0x[0-9a-fA-F]+)', line)
+            if match:
+                target_addr = match.group(1)
+                LastBreakpoint(f"*{target_addr}")
+                print(f"Breakpoint set at return instruction of main: {target_addr}")
+                return
+
+    print("Could not find return instruction (pop {..., pc} or ret) in main.")
+
 gdb.execute('target remote localhost:5000')
 gdb.execute('set print repeats unlimited')
 
@@ -146,12 +165,15 @@ if regs_file == "auto":
     getRegisters()
 else:
     readRegsJson(regs_file)
+
 lines = countProgramLines()
 print("Total lines of code:", lines)
 random_line = random.randint(1, lines)
 print("Setting breakpoint at line " + str(random_line))
 MainBreakpoint(str(random_line))
-print("Setting breakpoint at last line")
-LastBreakpoint(str(lines))
+
+print("Setting breakpoint at the end of main")
+setBreakOnReturnMain()
+
 gdb.execute('continue')
 gdb.execute('exit')

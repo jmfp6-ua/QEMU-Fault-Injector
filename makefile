@@ -1,5 +1,5 @@
 BUILD_DIR = build/
-CFLAGS = -g
+CFLAGS = -g -O0
 ifeq ($(STATIC), 1)
     CFLAGS += -static
 endif
