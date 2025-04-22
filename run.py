@@ -92,6 +92,14 @@ def registerFaultRun():
     result = captured_output.split("Result: ")[1].split("\n")[0]
     return result
 
+def debugRun():
+    global FILE
+
+    runExecutable()
+    subprocess.Popen(["gdb-multiarch", "-q", "--command", "scripts/debug.py", FILE], env=os.environ)
+
+    return
+
 # CLI Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("executable", help="Executable to run", type=str)
