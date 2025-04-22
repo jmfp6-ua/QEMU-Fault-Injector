@@ -4,7 +4,7 @@ import os
 import sys
 from enum import Enum
 
-LD_PREFIX_ARM = "/usr/arm-linux-gnueabi"
+LD_PREFIX_ARM = "/usr/arm-linux-gnueabihf"
 LD_PREFIX_ARM64 = "/usr/aarch64-linux-gnu"
 LD_PREFIX_RISCV = "/usr/riscv64-linux-gnu"
 
