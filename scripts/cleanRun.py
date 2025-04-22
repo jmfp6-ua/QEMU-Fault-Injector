@@ -1,34 +1,43 @@
 import gdb
 from gdb import Breakpoint
 from gdb import Frame
-import random
 import os
-import json
+import re
 
 VAR_NAME = ""
       
 class LastBreakpoint (gdb.Breakpoint):
       global VAR_NAME
       def stop (self):
-        value = gdb.parse_and_eval(VAR_NAME)
-        print("Result:", value)
+        try:
+            value = gdb.parse_and_eval(VAR_NAME)
+            print("Result:", value)
+        except gdb.error as e:
+            print("Error: No symbol")
+        
         return False
 
-def countProgramLines():
-    # Causing an exception on purpose because the error message has the info I need
-    try:
-        while True:
-            gdb.execute('list', to_string=True)
-    except gdb.error as error:
-        lines = str(error).split("has ")[1].split(" ")[0]
-        return int(lines)
+def setBreakOnReturnMain():
+    # Disassemble main
+    disasm = gdb.execute(f"disassemble main", to_string=True)
+    lines = disasm.strip().splitlines()
+
+    # Look for either 'pop {..., pc}' for arm32 or 'ret' for the rest
+    for line in lines:
+        line = line.strip()
+        if re.search(r'\bpop\s+.*\bpc\b', line) or re.search(r'\bret\b', line):
+            match = re.match(r'(0x[0-9a-fA-F]+)', line)
+            if match:
+                target_addr = match.group(1)
+                LastBreakpoint(f"*{target_addr}")
+                print(f"Breakpoint set at return instruction of main: {target_addr}")
+                return
+
+    print("Could not find return instruction (pop {..., pc} or ret) in main.")
 
 gdb.execute('target remote localhost:5000')
 
 VAR_NAME = os.getenv("VAR_NAME")
-
-lines = countProgramLines()
-random_line = random.randint(1, lines)
-LastBreakpoint(str(lines))
+setBreakOnReturnMain()
 gdb.execute('continue')
 gdb.execute('exit')

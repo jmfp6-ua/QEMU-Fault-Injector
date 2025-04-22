@@ -68,6 +68,12 @@ def cleanRun(varName):
     runExecutable()
     os.environ["VAR_NAME"] = varName
     output = subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/cleanRun.py", FILE], env=os.environ, capture_output=True, text=True).stdout
+    
+    if "Error:" in output:
+        print("Error while running clean run:")
+        printRawOutput(output)
+        exit()
+
     result = output.split("Result: ")[1].split("\n")[0]
     return result
 
@@ -95,14 +101,21 @@ def registerFaultRun():
 def debugRun():
     global FILE
 
+    os.environ["VAR_NAME"] = "sume"
     runExecutable()
     subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/debug.py", FILE], env=os.environ)
 
     return
 
+def printRawOutput(o):
+    print("------------------------------")
+    print(o)
+    print("------------------------------")
+
 # CLI Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("executable", help="Executable to run", type=str)
+parser.add_argument("resultVar", help="Variable that holds the result to compare against a clean run", type=str)
 parser.add_argument("-a", "--arch", help="Binary architecture (arm32, arm64, riscv, x86-64, default: auto)", default='auto', type=str)
 parser.add_argument("-d", help="Dump register list to json file and exit", action='store_true')
 parser.add_argument("-r", "--regs", help="List of registers to attack (json file)", default='auto', type=str)
@@ -136,7 +149,7 @@ exit()
 '''
 
 print("Running clean run to obtain expected result")
-expectedResult = cleanRun("sum")
+expectedResult = cleanRun(args.resultVar)
 print("Expected result:", expectedResult)
 
 runExecutable()
