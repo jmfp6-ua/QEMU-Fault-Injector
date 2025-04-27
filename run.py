@@ -3,6 +3,7 @@ import argparse
 import os
 import sys
 from enum import Enum
+import random
 
 LD_PREFIX_ARM = "/usr/arm-linux-gnueabihf"
 LD_PREFIX_ARM64 = "/usr/aarch64-linux-gnu"
@@ -87,6 +88,33 @@ def registerFaultRun():
 
     # Read output line by line in real-time
     for line in process.stdout:
+        if 'Reading' in line:
+            continue
+        
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        captured_output += line
+
+    # Wait for process to finish
+    process.wait()
+    
+    
+    result = captured_output.split("Result: ")[1].split("\n")[0]
+    return result
+
+def memoryFaultRun():
+    global FILE
+
+    runExecutable()
+    process = subprocess.Popen(["gdb-multiarch", "-q", "--command", "scripts/Injector_Ram.py", FILE], env=os.environ,stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    captured_output = ""
+
+    # Read output line by line in real-time
+    for line in process.stdout:
+        if 'Reading' in line:
+            continue
+
         sys.stdout.write(line)
         sys.stdout.flush()
         captured_output += line
@@ -101,9 +129,10 @@ def registerFaultRun():
 def debugRun():
     global FILE
 
-    os.environ["VAR_NAME"] = "sume"
+    os.environ["VAR_NAME"] = "sum"
     runExecutable()
     subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/debug.py", FILE], env=os.environ)
+    #subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/Injector_Ram.py", FILE], env=os.environ)
 
     return
 
@@ -152,6 +181,9 @@ print("Running clean run to obtain expected result")
 expectedResult = cleanRun(args.resultVar)
 print("Expected result:", expectedResult)
 
-runExecutable()
-result = registerFaultRun()
+result = ""
+if random.randint(0, 1) == 0:
+    result = registerFaultRun()
+else:
+    result = memoryFaultRun()
 print("Actual result:", result)
