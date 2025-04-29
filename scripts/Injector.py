@@ -7,6 +7,8 @@ import json
 import re
 
 REGISTERS = []
+CRASH_SIGNALS = ['SIGILL', 'SIGSEGV', 'SIGBUS']
+REG = ""
       
 class MainBreakpoint (gdb.Breakpoint):
       def __init__(self, location):
@@ -41,7 +43,7 @@ def getRegisters():
         REGISTERS.append(r.name)
 
 def getRandomRegister():
-    global REGISTERS
+    global REGISTERS, REG
 
     reg = random.choice(REGISTERS)
 
@@ -49,6 +51,7 @@ def getRandomRegister():
         REGISTERS.remove(reg)
         reg = random.choice(REGISTERS)
     
+    REG = reg
     return reg
 
 def getRegisterSizeInBits(reg):
@@ -157,8 +160,20 @@ def setBreakOnReturnMain():
 
     print("Could not find return instruction (pop {..., pc} or ret) in main.")
 
+def on_stop(event):
+    global CRASH_SIGNALS, REG
+
+    if event.stop_signal in CRASH_SIGNALS:
+        print("[!] Crash detected due to bitflip.")
+        val = gdb.parse_and_eval(f"${REG}")
+        print(f"[!] Faulting register: {REG} = {val}")
+        gdb.execute("set confirm off")
+        gdb.execute("exit")
+
 gdb.execute('target remote localhost:5000')
 gdb.execute('set print repeats unlimited')
+gdb.events.stop.connect(on_stop)
+gdb.events.exited.connect(on_stop)
 
 regs_file = os.getenv("REGS_FILE", "auto")
 if regs_file == "auto":

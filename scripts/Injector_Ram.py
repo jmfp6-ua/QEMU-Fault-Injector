@@ -7,8 +7,9 @@ import json
 import re
 
 REGISTERS = []
-
 MEMORY_SECTIONS = []
+CRASH_SIGNALS = ['SIGILL', 'SIGSEGV', 'SIGBUS']
+ADDR = ""
 
 # Define a class to hold each memory mapping
 class Mapping:
@@ -92,7 +93,7 @@ def parse_memory_mappings():
         i += 1
 
 def randomSelectAddress():
-    global MEMORY_SECTIONS
+    global MEMORY_SECTIONS, ADDR
 
     total_size = 0
     for mem in MEMORY_SECTIONS:
@@ -105,6 +106,7 @@ def randomSelectAddress():
         if rand < mem.size:
             #print(f"Region: {mem.label}")
             addr = mem.start + rand
+            ADDR = addr
             return addr
         else:
             rand -= mem.size
@@ -172,8 +174,20 @@ def setBreakOnReturnMain():
 
     print("Could not find return instruction (pop {..., pc} or ret) in main.")
 
+def on_stop(event):
+    global CRASH_SIGNALS, ADDR
+
+    if event.stop_signal in CRASH_SIGNALS:
+        print("[!] Crash detected due to bitflip.")
+        val = gdb.parse_and_eval(f"${ADDR}")
+        print(f"[!] Faulting address: {ADDR} = {val}")
+        gdb.execute("set confirm off")
+        gdb.execute("exit")
+
 gdb.execute('target remote localhost:5000')
 gdb.execute('set print repeats unlimited')
+gdb.events.stop.connect(on_stop)
+gdb.events.exited.connect(on_stop)
 
 lines = countProgramLines()
 print("Total lines of code:", lines)

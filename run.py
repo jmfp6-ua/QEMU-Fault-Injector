@@ -97,7 +97,9 @@ def registerFaultRun():
 
     # Wait for process to finish
     process.wait()
-    
+
+    if "Crash detected" in captured_output:
+        return "Crash"
     
     result = captured_output.split("Result: ")[1].split("\n")[0]
     return result
@@ -121,7 +123,9 @@ def memoryFaultRun():
 
     # Wait for process to finish
     process.wait()
-    
+
+    if "Crash detected" in captured_output:
+        return "Crash"
     
     result = captured_output.split("Result: ")[1].split("\n")[0]
     return result
@@ -181,9 +185,14 @@ print("Running clean run to obtain expected result")
 expectedResult = cleanRun(args.resultVar)
 print("Expected result:", expectedResult)
 
+crash_counter = 0
 result = ""
 if random.randint(0, 1) == 0:
     result = registerFaultRun()
 else:
     result = memoryFaultRun()
-print("Actual result:", result)
+
+if result == "Crash":
+    crash_counter += 1
+else:
+    print("Actual result:", result)
