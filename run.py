@@ -4,6 +4,8 @@ import os
 import sys
 from enum import Enum
 import random
+import time
+import threading
 
 LD_PREFIX_ARM = "/usr/arm-linux-gnueabihf"
 LD_PREFIX_ARM64 = "/usr/aarch64-linux-gnu"
@@ -18,6 +20,17 @@ class Arch(Enum):
 
 ARCH = ""
 FILE = ""
+
+class Results(Enum):
+    Correct = 0
+    Incorrect = 1
+    Crash = 2
+    Inf_Loop = 3
+
+EXPECTED_TIME_S = 0
+TIME_MARGIN_PERCENT = 1.1 # 10%
+TIME_STOP_EVENT = threading.Event()
+INF_LOOP_DETECTED = False
 
 def getBinaryWordSize(path):
     bits = subprocess.run(f"LANG=en readelf -h {path} | grep 'Class'", shell=True, capture_output=True, text=True)
@@ -64,12 +77,16 @@ def dumpRegisters():
         print("Failed to dump registers")
 
 def cleanRun(varName):
-    global FILE
+    global FILE, EXPECTED_TIME_S
 
+    start = time.time()
     runExecutable()
     os.environ["VAR_NAME"] = varName
     output = subprocess.run(["gdb-multiarch", "-q", "--command", "scripts/cleanRun.py", FILE], env=os.environ, capture_output=True, text=True).stdout
-    
+    end = time.time()
+
+    EXPECTED_TIME_S = end - start
+
     if "Error:" in output:
         print("Error while running clean run:")
         printRawOutput(output)
@@ -79,13 +96,16 @@ def cleanRun(varName):
     return result
 
 def registerFaultRun():
-    global FILE
+    global FILE, TIME_STOP_EVENT, INF_LOOP_DETECTED
 
     runExecutable()
     process = subprocess.Popen(["gdb-multiarch", "-q", "--command", "scripts/Injector.py", FILE], env=os.environ,stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     
-    captured_output = ""
+    time_thread = threading.Thread(target=timeThread, args=(process,))
+    time_thread.start()
 
+
+    captured_output = ""
     # Read output line by line in real-time
     for line in process.stdout:
         if 'Reading' in line:
@@ -98,18 +118,26 @@ def registerFaultRun():
     # Wait for process to finish
     process.wait()
 
-    if "Crash detected" in captured_output:
-        return "Crash"
-    
+    TIME_STOP_EVENT.set()
+    time_thread.join()
+
+    if INF_LOOP_DETECTED:
+        return Results.Inf_Loop
+    elif "Crash detected" in captured_output:
+        return Results.Crash
+            
     result = captured_output.split("Result: ")[1].split("\n")[0]
     return result
 
 def memoryFaultRun():
-    global FILE
+    global FILE, TIME_STOP_EVENT, INF_LOOP_DETECTED
 
     runExecutable()
     process = subprocess.Popen(["gdb-multiarch", "-q", "--command", "scripts/Injector_Ram.py", FILE], env=os.environ,stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     
+    time_thread = threading.Thread(target=timeThread, args=(process,))
+    time_thread.start()
+
     captured_output = ""
 
     # Read output line by line in real-time
@@ -124,8 +152,14 @@ def memoryFaultRun():
     # Wait for process to finish
     process.wait()
 
-    if "Crash detected" in captured_output:
-        return "Crash"
+    TIME_STOP_EVENT.set()
+    time_thread.join()
+
+    if "Result: " not in captured_output:
+        if "Crash detected" in captured_output:
+            return Results.Crash
+        else:
+            return Results.Inf_Loop
     
     result = captured_output.split("Result: ")[1].split("\n")[0]
     return result
@@ -144,6 +178,20 @@ def printRawOutput(o):
     print("------------------------------")
     print(o)
     print("------------------------------")
+
+def timeThread(process):
+    global TIME_STOP_EVENT, EXPECTED_TIME_S, TIME_MARGIN_PERCENT, INF_LOOP_DETECTED
+    
+    start = time.time()
+
+    while not TIME_STOP_EVENT.is_set() and not INF_LOOP_DETECTED:
+        if time.time() - start > EXPECTED_TIME_S * TIME_MARGIN_PERCENT:
+        #if time.time() - start > 0.001:
+            print("[!] Infinite loop detected")
+            process.terminate()
+            INF_LOOP_DETECTED = True
+        else:
+            time.sleep(0.1)
 
 # CLI Arguments
 parser = argparse.ArgumentParser()
@@ -186,13 +234,16 @@ expectedResult = cleanRun(args.resultVar)
 print("Expected result:", expectedResult)
 
 crash_counter = 0
+inf_loop_counter = 0
 result = ""
 if random.randint(0, 1) == 0:
     result = registerFaultRun()
 else:
     result = memoryFaultRun()
 
-if result == "Crash":
+if result == Results.Crash:
     crash_counter += 1
+elif result == Results.Inf_Loop:
+    inf_loop_counter += 1
 else:
     print("Actual result:", result)
