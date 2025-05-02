@@ -197,6 +197,7 @@ def timeThread(process):
 parser = argparse.ArgumentParser()
 parser.add_argument("executable", help="Executable to run", type=str)
 parser.add_argument("resultVar", help="Variable that holds the result to compare against a clean run", type=str)
+parser.add_argument("-n", help="List of registers to attack (json file)", default=1000, type=int)
 parser.add_argument("-a", "--arch", help="Binary architecture (arm32, arm64, riscv, x86-64, default: auto)", default='auto', type=str)
 parser.add_argument("-d", help="Dump register list to json file and exit", action='store_true')
 parser.add_argument("-r", "--regs", help="List of registers to attack (json file)", default='auto', type=str)
@@ -235,15 +236,29 @@ print("Expected result:", expectedResult)
 
 crash_counter = 0
 inf_loop_counter = 0
-result = ""
-if random.randint(0, 1) == 0:
-    result = registerFaultRun()
-else:
-    result = memoryFaultRun()
+correct_counter = 0
+incorrect_counter = 0
 
-if result == Results.Crash:
-    crash_counter += 1
-elif result == Results.Inf_Loop:
-    inf_loop_counter += 1
-else:
-    print("Actual result:", result)
+
+for i in range(args.n):
+    result = ""
+    if random.randint(0, 1) == 0:
+        result = registerFaultRun()
+    else:
+        result = memoryFaultRun()
+
+    if result == Results.Crash:
+        crash_counter += 1
+    elif result == Results.Inf_Loop:
+        inf_loop_counter += 1
+    else:
+        if result == expectedResult:
+            correct_counter += 1
+        else:
+            incorrect_counter += 1
+
+print("Correct counter:", correct_counter)
+print("Incorrect counter:", crash_counter)
+print("Crash counter:", crash_counter)
+print("Infinite loop counter:", inf_loop_counter)
+
