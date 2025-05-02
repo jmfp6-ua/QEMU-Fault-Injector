@@ -1,7 +1,7 @@
 # Qemu Fault Injector
 Fault injector using Qemu's gdb’s remote-connection facility, [gdbstub](https://www.qemu.org/docs/master/system/gdb.html). 
 
-Currently, it has the ability to modify any register arbitrarily, regardless of the executable architecture.
+Currently, it has the ability to modify any register or memory arbitrarily, regardless of the executable architecture.
 
 ## Dependecies
 python, gdb-multiarch, qemu 8.1 or above
@@ -27,5 +27,6 @@ once to dump available registers to a json file. Remove unwanted ones and run:
 
 | Key | Value | Description |
 | :---: | :---: | :---: |
+| -n | int | Number of executions to run (1000 default) |
 | -d | None | Dump register list to json file and exit |
-| -r | file path | List of registers to attack (json file) |
+| -r | string | File path of list of registers to attack (json file) |

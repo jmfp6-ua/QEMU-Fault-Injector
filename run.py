@@ -28,9 +28,10 @@ class Results(Enum):
     Inf_Loop = 3
 
 EXPECTED_TIME_S = 0
-TIME_MARGIN_PERCENT = 1.1 # 10%
+TIME_MARGIN_PERCENT = 1.5 # 50%
 TIME_STOP_EVENT = threading.Event()
 INF_LOOP_DETECTED = False
+QEMU_HANDLER = -1
 
 def getBinaryWordSize(path):
     bits = subprocess.run(f"LANG=en readelf -h {path} | grep 'Class'", shell=True, capture_output=True, text=True)
@@ -51,18 +52,18 @@ def getBinaryArch(path):
         return Arch.Arm64
 
 def runExecutable():
-    global ARCH, FILE, LD_PREFIX_ARM, LD_PREFIX_ARM64, LD_PREFIX_RISCV
+    global ARCH, FILE, LD_PREFIX_ARM, LD_PREFIX_ARM64, LD_PREFIX_RISCV, QEMU_HANDLER
 
     if ARCH == Arch.Arm:
-        subprocess.Popen(["qemu-arm", "-L", LD_PREFIX_ARM, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QEMU_HANDLER = subprocess.Popen(["qemu-arm", "-L", LD_PREFIX_ARM, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif ARCH == Arch.Arm64:
-        subprocess.Popen(["qemu-aarch64", "-L", LD_PREFIX_ARM64, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QEMU_HANDLER = subprocess.Popen(["qemu-aarch64", "-L", LD_PREFIX_ARM64, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif ARCH == Arch.riscv:
-        subprocess.Popen(["qemu-riscv64", "-L", LD_PREFIX_RISCV, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QEMU_HANDLER = subprocess.Popen(["qemu-riscv64", "-L", LD_PREFIX_RISCV, "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif ARCH == Arch.x86:
-        subprocess.Popen(["qemu-i386", "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QEMU_HANDLER = subprocess.Popen(["qemu-i386", "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif ARCH == Arch.x86_64:
-        subprocess.Popen(["qemu-x86_64", "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QEMU_HANDLER = subprocess.Popen(["qemu-x86_64", "-g", "5000", FILE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 
@@ -180,15 +181,15 @@ def printRawOutput(o):
     print("------------------------------")
 
 def timeThread(process):
-    global TIME_STOP_EVENT, EXPECTED_TIME_S, TIME_MARGIN_PERCENT, INF_LOOP_DETECTED
+    global TIME_STOP_EVENT, EXPECTED_TIME_S, TIME_MARGIN_PERCENT, INF_LOOP_DETECTED, QEMU_HANDLER
     
     start = time.time()
 
     while not TIME_STOP_EVENT.is_set() and not INF_LOOP_DETECTED:
         if time.time() - start > EXPECTED_TIME_S * TIME_MARGIN_PERCENT:
-        #if time.time() - start > 0.001:
             print("[!] Infinite loop detected")
             process.terminate()
+            QEMU_HANDLER.terminate()
             INF_LOOP_DETECTED = True
         else:
             time.sleep(0.1)
@@ -198,21 +199,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument("executable", help="Executable to run", type=str)
 parser.add_argument("resultVar", help="Variable that holds the result to compare against a clean run", type=str)
 parser.add_argument("-n", help="List of registers to attack (json file)", default=1000, type=int)
-parser.add_argument("-a", "--arch", help="Binary architecture (arm32, arm64, riscv, x86-64, default: auto)", default='auto', type=str)
 parser.add_argument("-d", help="Dump register list to json file and exit", action='store_true')
 parser.add_argument("-r", "--regs", help="List of registers to attack (json file)", default='auto', type=str)
 
 args = parser.parse_args()
-
-ARCH = args.arch
 FILE = args.executable
 
 if not os.path.isfile(FILE):
     print("Error: Executable file not found. Check path")
     exit()
 
-if ARCH == "auto":
-    ARCH = getBinaryArch(FILE)
+ARCH = getBinaryArch(FILE)
 
 if args.d:
     dumpRegisters()
@@ -239,9 +236,11 @@ inf_loop_counter = 0
 correct_counter = 0
 incorrect_counter = 0
 
-
 for i in range(args.n):
+    TIME_STOP_EVENT.clear()
+    INF_LOOP_DETECTED = False
     result = ""
+
     if random.randint(0, 1) == 0:
         result = registerFaultRun()
     else:
@@ -258,7 +257,7 @@ for i in range(args.n):
             incorrect_counter += 1
 
 print("Correct counter:", correct_counter)
-print("Incorrect counter:", crash_counter)
+print("Incorrect counter:", incorrect_counter)
 print("Crash counter:", crash_counter)
 print("Infinite loop counter:", inf_loop_counter)
 
