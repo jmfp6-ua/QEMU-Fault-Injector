@@ -28,7 +28,7 @@ class Results(Enum):
     Inf_Loop = 3
 
 EXPECTED_TIME_S = 0
-TIME_MARGIN_PERCENT = 1.5 # 50%
+TIME_MARGIN_PERCENT = 100 # 100x
 TIME_STOP_EVENT = threading.Event()
 INF_LOOP_DETECTED = False
 QEMU_HANDLER = -1
@@ -93,8 +93,12 @@ def cleanRun(varName):
         printRawOutput(output)
         exit()
 
-    result = output.split("Result: ")[1].split("\n")[0]
-    return result
+    try:
+        result = output.split("Result: ")[1].split("\n")[0]
+        return result
+    except:
+        print("[!] Could not get result. Assuming crash")
+        return Results.Crash
 
 def registerFaultRun():
     global FILE, TIME_STOP_EVENT, INF_LOOP_DETECTED
@@ -127,8 +131,12 @@ def registerFaultRun():
     elif "Crash detected" in captured_output:
         return Results.Crash
             
-    result = captured_output.split("Result: ")[1].split("\n")[0]
-    return result
+    try:
+        result = captured_output.split("Result: ")[1].split("\n")[0]
+        return result
+    except:
+        print("[!] Could not get result. Assuming crash")
+        return Results.Crash
 
 def memoryFaultRun():
     global FILE, TIME_STOP_EVENT, INF_LOOP_DETECTED
@@ -162,8 +170,12 @@ def memoryFaultRun():
         else:
             return Results.Inf_Loop
     
-    result = captured_output.split("Result: ")[1].split("\n")[0]
-    return result
+    try:
+        result = captured_output.split("Result: ")[1].split("\n")[0]
+        return result
+    except:
+        print("[!] Could not get result. Assuming crash")
+        return Results.Crash
 
 def debugRun():
     global FILE
@@ -198,9 +210,10 @@ def timeThread(process):
 parser = argparse.ArgumentParser()
 parser.add_argument("executable", help="Executable to run", type=str)
 parser.add_argument("resultVar", help="Variable that holds the result to compare against a clean run", type=str)
-parser.add_argument("-n", help="List of registers to attack (json file)", default=1000, type=int)
+parser.add_argument("-n", help="Number of iterations to run for", default=1000, type=int)
 parser.add_argument("-d", help="Dump register list to json file and exit", action='store_true')
 parser.add_argument("-r", "--regs", help="List of registers to attack (json file)", default='auto', type=str)
+parser.add_argument('--restrict', help='Inject fault in only registers or memory (otherwise random each time)', nargs='?', choices=('regs', 'ram'))
 
 args = parser.parse_args()
 FILE = args.executable
@@ -241,10 +254,15 @@ for i in range(args.n):
     INF_LOOP_DETECTED = False
     result = ""
 
-    if random.randint(0, 1) == 0:
+    if args.restrict == "regs":
         result = registerFaultRun()
-    else:
+    elif args.restrict == "ram":
         result = memoryFaultRun()
+    else:
+        if random.randint(0, 1) == 0:
+            result = registerFaultRun()
+        else:
+            result = memoryFaultRun()
 
     if result == Results.Crash:
         crash_counter += 1
@@ -256,8 +274,8 @@ for i in range(args.n):
         else:
             incorrect_counter += 1
 
-print("Correct counter:", correct_counter)
-print("Incorrect counter:", incorrect_counter)
-print("Crash counter:", crash_counter)
-print("Infinite loop counter:", inf_loop_counter)
+print(f"Correct counter: {correct_counter} - {correct_counter / args.n * 100}%")
+print(f"Incorrect counter: {incorrect_counter} - {incorrect_counter / args.n * 100}%")
+print(f"Crash counter: {crash_counter} - {crash_counter / args.n * 100}%")
+print(f"Infinite loop counter: {inf_loop_counter} - {inf_loop_counter / args.n * 100}%")
 
