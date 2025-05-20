@@ -33,6 +33,8 @@ TIME_STOP_EVENT = threading.Event()
 INF_LOOP_DETECTED = False
 QEMU_HANDLER = -1
 
+FAULTY_REGS = {}
+
 def getBinaryWordSize(path):
     bits = subprocess.run(f"LANG=en readelf -h {path} | grep 'Class'", shell=True, capture_output=True, text=True)
     if "ELF64" in bits.stdout:
@@ -129,6 +131,8 @@ def registerFaultRun():
     if INF_LOOP_DETECTED:
         return Results.Inf_Loop
     elif "Crash detected" in captured_output:
+        reg = captured_output.split("Faulting register: ")[1].split(" = ")[0]
+        FAULTY_REGS[reg] = FAULTY_REGS.get(reg, 0) + 1
         return Results.Crash
             
     try:
@@ -200,8 +204,8 @@ def timeThread(process):
     while not TIME_STOP_EVENT.is_set() and not INF_LOOP_DETECTED:
         if time.time() - start > EXPECTED_TIME_S * TIME_MARGIN_PERCENT:
             print("[!] Infinite loop detected")
-            process.terminate()
-            QEMU_HANDLER.terminate()
+            process.kill()
+            QEMU_HANDLER.kill()
             INF_LOOP_DETECTED = True
         else:
             time.sleep(0.1)
@@ -250,6 +254,8 @@ correct_counter = 0
 incorrect_counter = 0
 
 for i in range(args.n):
+    if i % 10 == 0:
+        print(f"Iteration {i} of {args.n}")
     TIME_STOP_EVENT.clear()
     INF_LOOP_DETECTED = False
     result = ""
@@ -274,8 +280,19 @@ for i in range(args.n):
         else:
             incorrect_counter += 1
 
+
+total_errors = crash_counter + incorrect_counter + inf_loop_counter
+
+print("-------------------------------------------------")
+print("|                    RESULTS                    |")
+print("-------------------------------------------------")
+
 print(f"Correct counter: {correct_counter} - {correct_counter / args.n * 100}%")
 print(f"Incorrect counter: {incorrect_counter} - {incorrect_counter / args.n * 100}%")
 print(f"Crash counter: {crash_counter} - {crash_counter / args.n * 100}%")
 print(f"Infinite loop counter: {inf_loop_counter} - {inf_loop_counter / args.n * 100}%")
 
+print(f"\nRegisters faults: {FAULTY_REGS}")
+
+if(total_errors != 0):
+    print(f"\nMWTF = {args.n / total_errors}")

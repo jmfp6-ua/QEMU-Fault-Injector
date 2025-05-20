@@ -36,6 +36,8 @@ def setBreakOnReturnMain():
     print("Could not find return instruction (pop {..., pc} or ret) in main.")
 
 gdb.execute('target remote localhost:5000')
+gdb.execute('set print repeats unlimited')
+gdb.execute('set print elements 0')
 
 VAR_NAME = os.getenv("VAR_NAME")
 setBreakOnReturnMain()

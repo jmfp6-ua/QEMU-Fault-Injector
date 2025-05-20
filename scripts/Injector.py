@@ -7,7 +7,7 @@ import json
 import re
 
 REGISTERS = []
-CRASH_SIGNALS = ['SIGILL', 'SIGSEGV', 'SIGBUS']
+CRASH_SIGNALS = ['SIGILL', 'SIGSEGV', 'SIGBUS', 'SIGTRAP', 'SIGABRT']
 REG = ""
       
 class MainBreakpoint (gdb.Breakpoint):
@@ -172,6 +172,7 @@ def on_stop(event):
 
 gdb.execute('target remote localhost:5000')
 gdb.execute('set print repeats unlimited')
+gdb.execute('set print elements 0')
 gdb.events.stop.connect(on_stop)
 gdb.events.exited.connect(on_stop)
 

@@ -8,7 +8,7 @@ import re
 
 REGISTERS = []
 MEMORY_SECTIONS = []
-CRASH_SIGNALS = ['SIGILL', 'SIGSEGV', 'SIGBUS']
+CRASH_SIGNALS = ['SIGILL', 'SIGSEGV', 'SIGBUS', 'SIGTRAP', 'SIGABRT']
 ADDR = ""
 
 # Define a class to hold each memory mapping
@@ -186,6 +186,7 @@ def on_stop(event):
 
 gdb.execute('target remote localhost:5000')
 gdb.execute('set print repeats unlimited')
+gdb.execute('set print elements 0')
 gdb.events.stop.connect(on_stop)
 gdb.events.exited.connect(on_stop)
 
